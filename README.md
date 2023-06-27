@@ -3,4 +3,4 @@
 We perform `EDA`, `t-tests` --complete readme
 
 
-We use `.CEL` files 
+We use `.CEL` files --complete
