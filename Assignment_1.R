@@ -1,0 +1,794 @@
+
+#getwd()
+setwd("/Users/jyotir/Desktop/PB/HandsOn/A1/GSE14520_RAW")
+
+# Installing packages
+# if (!require("BiocManager", quietly = TRUE))
+#   install.packages("BiocManager")
+# BiocManager::install("affy")
+# BiocManager::install("affyPLM")
+# BiocManager::install("hgu133plus2cdf")
+# BiocManager::install("biomaRt")
+
+
+# Use BiocManager for these
+# install.packages('hgu133plus2cdf')
+# install.packages('RSQLite')
+# install.packages('png')
+# install.packages("affyPLM")
+
+# Loading libraries
+library(affy)
+library(affyio)
+library(affyPLM)
+library(hgu133plus2cdf)
+library(hthgu133acdf)
+library(biomaRt)
+library(moments)
+library(ggplot2)
+library(dplyr)
+library(Dict)
+library(stringr)
+library(tidyverse)
+library(hash)
+library(stargazer)
+library(magrittr)
+#install.packages("reshape2")
+library(reshape2)
+library(Biobase)
+
+
+
+# entrez_dbs()
+# listMarts()
+# ensembl=useMart("ensembl")
+# data = useDataset(mart=)
+
+file_names=list.files(pattern='*.CEL')
+file_names
+length(file_names) # check for 445 files
+# Healthy Samples: 222
+# Unhealthy Samples: 212
+
+
+#cel_file = read.celfile("GSM2040254_H9_DP197PR01.cel",intensity.means.only=FALSE)
+#View(cel_file)
+#print(cel_file)
+
+
+
+# Processing all the files
+Data<-ReadAffy(filenames = file_names) # reading all the CEL files into an Affybatch
+sampleNames(Data)
+N=length(Data) # check length is 445
+unprocessed_data <-  rma(Data,verbose = TRUE, destructive = TRUE, normalize = FALSE, background = FALSE) #storing unprocessed data
+#View(unprocessed_data)
+processed_data<-rma(Data) # performing background correction and normalization of data, converts affyobject into expression set
+#View(processed_data)
+
+
+
+
+
+##-------------------------------------##-------------------------------------##-------------------------------------##-------------------------------------##-------------------------------------
+
+
+
+# Stroing the expression values of unprocessed data into a variable
+unprocessed_data_expression <- exprs(unprocessed_data)
+View(unprocessed_data_expression)
+# min(unprocessed_data_expression) Min value = 4.270529
+# max(unprocessed_data_expression) Max value = 15.20948
+
+
+# Storing the expression values of processed data into a variable
+groupA_exprs<-exprs(processed_data)
+View(groupA_exprs)
+# min(groupA_exprs) Min value = 2.473168
+# max(groupA_exprs) Max value = 14.26534
+
+
+# Storing the probe_ids into a a variable and adding it to the dataframe
+# probeid<-rownames(groupA_exprs)
+# groupA_exprs<-cbind(probeid,groupA_exprs) # Adding the probe_id as a column to the dataframe
+
+
+
+
+# To write the processed data to a file
+# write.table(groupA_exprs,file="tumour.expres.txt",sep='\t',quote=F,row.names=F)
+
+
+
+# Converting into a dataframe
+groupA_exprs__dataframe <- as.data.frame(groupA_exprs)
+groupA_exprs__dataframe_for_summary_statistics <- as.data.frame(groupA_exprs) #using this variable only for summary statistics
+View(groupA_exprs__dataframe)
+View(groupA_exprs__dataframe_for_summary_statistics)
+
+# For statistics on each file/sample individually
+stargazer_summary <- stargazer(groupA_exprs__dataframe, type = "text")
+
+# Looping through the first 5 probes, can change the range depending on which value you want to see
+for(i in 1:5){
+  probe_data_list <- c()
+  for(j in 1:445){
+    probe_data_list <- append(probe_data_list,groupA_exprs__dataframe_for_summary_statistics[i,j])
+    probe_data_list <- as.double(probe_data_list)
+  }
+  print(rownames(groupA_exprs__dataframe_for_summary_statistics)[i])
+  stargazer(as.data.frame(probe_data_list), type = "text")
+  
+}
+#groupA_exprs__dataframe[1,3]
+
+
+# Viewing the pdata (number of samples)
+pdata_variable <- pData(processed_data)
+View(pdata_variable)
+# Viewing the fdata ()
+fdata_variable <- fdata(data.matrix(groupA_exprs__dataframe))
+
+
+# Changing the dataframe format so as to plot easily
+groupA_exprs__dataframe_long <- melt(groupA_exprs__dataframe)
+head(groupA_exprs__dataframe_long)
+View(groupA_exprs__dataframe_long)
+
+
+# quartz("BoxPlot",30,5) To view in a screen
+
+# Saving the BoxPlot in two jpg files
+jpeg("rboxplot1_5012325.jpg", width = 1800, height = 750)
+ggplot(groupA_exprs__dataframe_long[1:5012325,], aes(x = variable, y = value), cex = 1) +
+  ggtitle("Box Plot of Samples and Gene Expression Values") +
+  xlab("Sample Number") + ylab("Value") +
+  theme(axis.text.x = element_text(angle = 270)) +
+  geom_boxplot()
+dev.off()
+
+
+jpeg("rboxplot5012325_9,913,265.jpg", width = 1800, height = 750)
+ggplot(groupA_exprs__dataframe_long[5012325:9913265,], aes(x = variable, y = value), cex = 1) +
+  ggtitle("Box Plot of Samples and Gene Expression Values") +
+  xlab("Sample Number") + ylab("Value") +
+  theme(axis.text.x = element_text(angle = 270)) +
+  geom_boxplot()
+dev.off()
+
+#View(groupA_exprs__dataframe[,c(2,3)])
+
+
+# Saving the QQ Plot Log in a jpg file
+jpeg("rqqplotlog.jpg", width = 1800, height = 750)
+ggplot(groupA_exprs__dataframe_long, aes(sample = value)) + 
+  stat_qq() + 
+  stat_qq_line()
+dev.off()
+
+
+# Finding the skewness and kurtosis of the data to be 1.33152 and 4.287771
+all_values = groupA_exprs__dataframe_long$value
+skewness(all_values)
+kurtosis(all_values)
+
+
+##-------------------------------------##-------------------------------------##-------------------------------------##-------------------------------------##-------------------------------------
+
+#Q3
+
+#Since the microarray data is already normalised, we do not need to perform normalisation again
+#groupA_exprs__dataframe <- log2(groupA_exprs__dataframe)
+#View(groupA_exprs__dataframe)
+
+##-------------------------------------##-------------------------------------##-------------------------------------##-------------------------------------##-------------------------------------
+
+
+#Q4
+
+# 0 indicates unhealthy and 1 indicates healthy
+string_pattern <- paste0("00011100011100011100011100010001110001111111111111",
+                         "00000000001111111111100000000000111111110000000000",
+                         "11111111111000000000000000000011111111110000010000",
+                         "00111110111110000000000111111111110000000000011111",
+                         "11111101010001010101010101010101010101010101010010",
+                         "10101010100101010101010101101010101010101010111111",
+                         "11111000000000000011111111111100000000000111111111",
+                         "10000000001111111100000000000010101001010101010010",
+                         "0101010101011011110011100000101011XXXXXXXXXXX")
+
+# changing into a string of characters
+string_pattern <- strsplit(string_pattern,split = "")[[1]]
+
+
+
+p_value_df <- data.frame()
+p_value_list <- c()
+mean_value_list_h <- c()
+mean_value_list_uh <- c()
+#View(p_value_df)
+
+# Looping through all the probes
+for(i in 1:22277){
+  h_list <- c()
+  uh_list <- c()
+  for(j in 1:450){
+    if(identical(string_pattern[j], "1")){
+      # Putting all the values for a particular gene of the healthy class into an array
+      h_list <- append(h_list,groupA_exprs__dataframe[i,j])
+      h_list <- as.double(h_list)
+    }
+    else{
+      # Putting all the values of that same gene of the unhealthy class into an array
+      uh_list <- append(uh_list,groupA_exprs__dataframe[i,j])
+      uh_list <- as.double(uh_list)
+    }
+  }
+  
+  # Carrying out t-test for these two datasets
+  # Not checking if the variance is same or not
+  a <- t.test(h_list,uh_list)
+  
+  
+  # Appending these values to a list
+  p_value_list <- append(p_value_list,a["p.value"])
+  mean_value_list_h <- append(mean_value_list_h,a[["estimate"]][["mean of x"]])
+  mean_value_list_uh <- append(mean_value_list_uh,a[["estimate"]][["mean of y"]])
+  
+  # healthy_gene <- append(healthy_gene,h_list)
+  # unhealthy_gene <- append(unhealthy_gene,uh_list)
+  
+}
+
+
+# # Checking lengths to be 22277
+length(p_value_list)
+length(mean_value_list_h)
+length(mean_value_list_uh)
+View(p_value_list)
+View(mean_value_list_h)
+View(mean_value_list_uh)
+
+
+#Because our data is already log2 transformed, we can take the difference between the means and this is our log2 Fold Change  == log2(control / test)
+log_fold_change_list <- mean_value_list_h-mean_value_list_uh
+
+# Adjusting p-values via Holm Correction
+p_value_list_holm <- p.adjust(p_value_list,method = "holm")
+p_value_list_holm
+
+
+groupA_exprs__dataframe %<>% mutate(pvalue = as.double(p_value_list_holm), .before = GSM362958.CEL)
+#groupA_exprs__dataframe %<>% mutate(pvalue = as.double(p_value_list), .before = GSM362958.CEL)
+groupA_exprs__dataframe %<>% mutate(logFC = as.double(log_fold_change_list), .before = GSM362958.CEL)
+View(groupA_exprs__dataframe)
+
+
+# For the most basic volcano plot, only a single data-frame, data-matrix, or tibble of test results is 
+# required, containing point labels, log2FC, and adjusted or unadjusted P values. The default cut-off for 
+# log2FC is >|2|; the default cut-off for P value is 10e-6.
+
+
+# Counting number of differentially expressed genes
+count <- 0
+for(i in 1:22277){
+  if(groupA_exprs__dataframe[i,"pvalue"] < 0.05 & (groupA_exprs__dataframe[i,"logFC"]>2 || groupA_exprs__dataframe[i,"logFC"] < -2)){
+    count = count + 1
+  }
+}
+# count = 230
+
+
+
+# Saving the Volcano Plot in a jpeg file
+jpeg("rvolcanoplotholm.jpg", width = 1800, height = 750)
+ggplot(data = groupA_exprs__dataframe, aes(x=logFC, y= -log10(pvalue))) +
+  geom_vline(xintercept = c(-2.0,2.0), col = 'red', linetype = 'dashed') +
+  geom_hline(yintercept = c(0.05), col = 'red', linetype = 'dashed') +
+  geom_point()
+dev.off()
+
+
+# #### For plotting volcano plot with colours
+groupA_exprs__dataframe_volcanoplot <- as.data.frame(groupA_exprs)
+#groupA_exprs__dataframe_volcanoplot %<>% mutate(pvalue = as.double(p_value_list))
+groupA_exprs__dataframe_volcanoplot %<>% mutate(pvalue = as.double(p_value_list_holm))
+groupA_exprs__dataframe_volcanoplot %<>% mutate(logFC = as.double(log_fold_change_list))
+groupA_exprs__dataframe_volcanoplot$diffexpressed <- 'NO'
+#groupA_exprs__dataframe$diffexpressed[df$logFC>2.0 & df$pvalue<0.05] <- 'UP'
+#groupA_exprs__dataframe$diffexpressed[df$logFC<-2.0 & df$pvalue<0.05] <- 'DOWN'
+View(groupA_exprs__dataframe_volcanoplot)
+
+# Finding which genes are upregulated and which are downregulated
+for(i in 1:22277){
+  if((groupA_exprs__dataframe_volcanoplot[i,"logFC"]> 2.0 & groupA_exprs__dataframe_volcanoplot[i,"pvalue"]<0.05) == TRUE){
+    groupA_exprs__dataframe_volcanoplot[i,"diffexpressed"] <- 'UP'
+  }
+  if((groupA_exprs__dataframe_volcanoplot[i,"logFC"]< (-2.0) & groupA_exprs__dataframe_volcanoplot[i,"pvalue"]<0.05) == TRUE){
+    groupA_exprs__dataframe_volcanoplot[i,"diffexpressed"] <- 'DOWN'
+  }
+  
+}
+groupA_exprs__dataframe_volcanoplot[1,"logFC"]
+groupA_exprs__dataframe_volcanoplot[2,"logFC"]
+View(groupA_exprs__dataframe_volcanoplot)
+
+# Volcano Plot
+jpeg("rvolcanoplotcolourholm.jpg", width = 1800, height = 750)
+ggplot(data = groupA_exprs__dataframe_volcanoplot, aes(x=logFC, y= -log10(pvalue),col = diffexpressed)) +
+  geom_vline(xintercept = c(-2.0,2.0), col = 'red', linetype = 'dashed') +
+  geom_hline(yintercept = c(0.05), col = 'red', linetype = 'dashed') +
+  geom_point() +
+  scale_color_manual(values = c("#00AFBB","black","#bb0c00"),
+                     labels = c("Down","No","Up"))
+dev.off()
+
+
+
+
+
+
+##-------------------------------------##-------------------------------------##-------------------------------------##-------------------------------------##-------------------------------------
+
+#Q5
+
+
+#   Differential expression analysis with limma
+library(GEOquery)
+library(limma)
+library(umap)
+
+# load series and platform data from GEO
+
+gset <- getGEO("GSE14520", GSEMatrix =TRUE, AnnotGPL=TRUE)
+if (length(gset) > 1) idx <- grep("GPL3921", attr(gset, "names")) else idx <- 1
+gset <- gset[[idx]]
+
+#View(pdata(gset))
+#View(fdata(gset))
+
+# make proper column names to match toptable 
+fvarLabels(gset) <- make.names(fvarLabels(gset))
+
+# group membership for all samples
+gsms <- paste0("00011100011100011100011100010001110001111111111111",
+               "00000000001111111111100000000000111111110000000000",
+               "11111111111000000000000000000011111111110000010000",
+               "00111110111110000000000111111111110000000000011111",
+               "11111101010001010101010101010101010101010101010010",
+               "10101010100101010101010101101010101010101010111111",
+               "11111000000000000011111111111100000000000111111111",
+               "10000000001111111100000000000010101001010101010010",
+               "0101010101011011110011100000101011XXXXXXXXXXX")
+sml <- strsplit(gsms, split="")[[1]]
+
+#ax <- exprs(gset)
+#ax["1007_s_at","GSM362958"]
+#ax[1,2]
+
+#s <- "abd"
+#ssplit <- strsplit(s, split="")[[1]]
+#for(i in 1:length(ssplit)){
+#  print(ssplit[i])
+#}
+
+
+# filter out excluded samples (marked as "X")
+sel <- which(sml != "X")
+sml <- sml[sel]
+gset <- gset[ ,sel]
+
+# log2 transformation
+ex <- exprs(gset)
+qx <- as.numeric(quantile(ex, c(0., 0.25, 0.5, 0.75, 0.99, 1.0), na.rm=T))
+LogC <- (qx[5] > 100) ||
+  (qx[6]-qx[1] > 50 && qx[2] > 0)
+if (LogC) { ex[which(ex <= 0)] <- NaN
+exprs(gset) <- log2(ex) }
+
+# assign samples to groups and set up design matrix
+gs <- factor(sml)
+groups <- make.names(c("Healthy","Unhealthy"))
+levels(gs) <- groups
+gset$group <- gs
+design <- model.matrix(~group + 0, gset)
+colnames(design) <- levels(gs)
+
+fit <- lmFit(gset, design)  # fit linear model
+
+# set up contrasts of interest and recalculate model coefficients
+cts <- paste(groups[1], groups[2], sep="-")
+cont.matrix <- makeContrasts(contrasts=cts, levels=design)
+fit2 <- contrasts.fit(fit, cont.matrix)
+
+# compute statistics and table of top significant genes
+fit2 <- eBayes(fit2, 0.01)
+tT <- topTable(fit2, adjust="fdr", sort.by="B", number=25000)
+de_genes <- topTable(fit2, adjust.method="holm", p.value=0.05, lfc=2, number=Inf)
+View(de_genes)
+
+
+
+
+dT <- decideTests(fit2, adjust.method="fdr", p.value=0.05)
+
+# volcano plot (log P-value vs log fold change)
+colnames(fit2) # list contrast names
+ct <- 1        # choose contrast of interest
+jpeg("rvolcanoplotq5.jpg", width = 1800, height = 750)
+volcanoplot(fit2, coef=ct, main=colnames(fit2)[ct], pch=20,
+            highlight=length(which(dT[,ct]!=0)), names=rep('.', nrow(fit2)))
+dev.off()
+
+
+
+##-------------------------------------##-------------------------------------##-------------------------------------##-------------------------------------##-------------------------------------
+
+
+#Q7
+
+
+#BiocManager::install("org.Hs.eg.db")
+#BiocManager::install("GO.db")
+#BiocManager::install("GOstats")
+#BiocManager::install("clusterProfiler")
+#BiocManager::install("pathview")
+#BiocManager::install("gage")
+#BiocManager::install("gageData")
+#BiocManager::install("enrichplot")
+#BiocManager::install("ggridges")
+library(AnnotationDbi)
+library(GO.db)
+library(GOstats)
+library(clusterProfiler)
+library(pathview)
+library(gage)
+library(gageData)
+library(enrichplot)
+library(ggridges)
+library(org.Hs.eg.db)
+columns(org.Hs.eg.db)
+
+#View(de_genes)
+de_genes_new <- de_genes
+#de_genes_new <- drop_na(de_genes_new)
+View(de_genes_new)
+
+de_genes_new$ENTREZ <- mapIds(org.Hs.eg.db, # using human data set
+                              keys = de_genes_new$GenBank.Accession, # defining which column to use
+                              column = "ENTREZID", # to which ID I want to map values to
+                              keytype = "ACCNUM", # from which ID I want to map values
+                              multiVals = "first")
+
+
+# Removing empty rows and rows with NAs 
+de_genes_new <- de_genes_new[!is.na(de_genes_new$ENTREZ),]
+de_genes_new <- de_genes_new[!(de_genes_new$ENTREZ==" "),]
+#de_genes_new <- unique(de_genes_new["ENTREZ"])
+View(de_genes_new)
+
+
+
+
+#### GO ANALYSIS ####
+
+
+
+original_gene_list <- de_genes_new$logFC
+View(original_gene_list)
+length(original_gene_list)
+# name the vector
+names(original_gene_list) <- (de_genes_new$ENTREZ)
+View(original_gene_list)
+
+# omit any NA values 
+gene_list<-na.omit(original_gene_list)
+length(gene_list)
+
+# sort the list in decreasing order (required for clusterProfiler)
+gene_list = sort(gene_list, decreasing = TRUE)
+
+
+
+gse <- gseGO(geneList=gene_list, # list of DEG genes
+             ont ="ALL", # types of ontology we want to analyse (BP, CC, MF)
+             keyType = "ENTREZID", # the type of keys used in the gene list to specify the gene (ENTREZ ID, SYMBOL, REFSEQ, etc.)
+             minGSSize = 3, # minimum number of genes (possible) in data, if less genes are present they will be ignored
+             maxGSSize = 1000, # maximum number of genes (possible) in data, if more genes are present they will be ignored
+             pvalueCutoff = 0.05, # specifying the p value we want to use
+             verbose = TRUE, # print out what steps are being carried out
+             OrgDb = org.Hs.eg.db, # specifying the data set of the organism being used
+             pAdjustMethod = "none") # specifying method for correcting p-value
+
+
+
+View(gse@result)
+
+# Dot Plot
+require(DOSE)
+# Saving the Dot Plot in a jpg file
+jpeg("rdotplot.jpg", width = 1800, height = 750)
+dotplot(gse, split=".sign") + facet_grid(.~.sign)
+#dotplot(gse, showCategory=10, split=".sign") + facet_grid(.~.sign)
+dev.off()
+
+
+# Enrichment Map
+# Saving the Enrichment Map in a jpg file
+jpeg("renrichmentmap.jpg", width = 1800, height = 750)
+x <- pairwise_termsim(gse)
+emapplot(x)
+#emapplot(gse, showCategory = 10)
+dev.off()
+
+
+
+# Category Netplot
+
+# categorySize can be either 'pvalue' or 'geneNum'
+# Saving the Category Netplot in a jpg file
+jpeg("rcategorynetplot.jpg", width = 1800, height = 750)
+#cnetplot(gse, categorySize="pvalue", color.params = list(foldChange=gene_list), showCategory = 3)
+cnetplot(gse, categorySize="pvalue", color.params = list(foldChange=gene_list))
+dev.off()
+
+
+# Ridge Plot
+# Saving the Ridge Plot in a jpg file
+jpeg("rridgeplot.jpg", width = 1800, height = 750)
+ridgeplot(gse) + labs(x = "enrichment distribution")
+dev.off()
+
+
+# Saving the GSEA Plot in a jpg file
+select_gene_id <- 1
+jpeg("rgsea.jpg", width = 1800, height = 750)
+# Use the `Gene Set` param for the index in the title, and as the value for geneSetId
+gseaplot(gse, by = "all", title = gse$Description[select_gene_id], geneSetID = select_gene_id)
+dev.off()
+
+
+
+#### KEGG PATHWAY ANALYSIS ####
+
+
+
+de_genes_new$ENSEMBL <- mapIds(org.Hs.eg.db,
+                               keys = de_genes_new$GenBank.Accession,
+                               column = "ENSEMBL",
+                               keytype = "ACCNUM",
+                               multiVals = "first")
+
+
+View(de_genes_new)
+# Removing duplicate values
+de_genes_new = de_genes_new[!duplicated(de_genes_new$Gene.ID),]
+de_genes_new = de_genes_new[!duplicated(de_genes_new$ENSEMBL),]
+de_genes_new = de_genes_new[!duplicated(de_genes_new$ENTREZ),]
+View(de_genes_new)
+
+original_gene_list <- de_genes_new$logFC
+names(original_gene_list) <- (de_genes_new$ENSEMBL)
+View(original_gene_list)
+
+
+
+# Convert gene IDs for gseKEGG function
+# We will lose some genes here because not all IDs will be converted
+ids<-bitr(names(original_gene_list), fromType = "ENSEMBL", toType = "ENTREZID", OrgDb=org.Hs.eg.db)
+# remove duplicate IDS (here I use "ENSEMBL", but it should be whatever was selected as keyType)
+dedup_ids = ids[!duplicated(ids[c("ENSEMBL")]),]
+
+# Create a new dataframe df2 which has only the genes which were successfully mapped using the bitr function above
+df2 = de_genes_new[de_genes_new$ENSEMBL %in% dedup_ids$ENSEMBL,]
+
+# Create a new column in df2 with the corresponding ENTREZ IDs
+df2$Y = dedup_ids$ENTREZID
+
+# Create a vector of the gene unuiverse
+kegg_gene_list <- de_genes_new$logFC
+
+# Name vector with ENTREZ ids
+names(kegg_gene_list) <- df2$Y
+View(kegg_gene_list)
+
+# omit any NA values 
+kegg_gene_list<-na.omit(kegg_gene_list)
+
+# sort the list in decreasing order (required for clusterProfiler)
+kegg_gene_list = sort(kegg_gene_list, decreasing = TRUE)
+
+
+
+kegg_organism = "hsa" #specifying hsa for human organism
+kk2 <- gseKEGG(geneList     = kegg_gene_list, # list of DEG genes
+               organism     = kegg_organism, # specifying the data set of the organism being used, hsa is code for humans
+               nPerm        = 10000, # number of permutations that will run, the more permutations the more accurate our answers will be but it will take longer
+               minGSSize    = 3, # minimum number of genes (possible) in data, if less genes are present they will be ignored
+               maxGSSize    = 800, # maximum number of genes (possible) in data, if more genes are present they will be ignored
+               pvalueCutoff = 0.05, # specifying the p value we want to use
+               pAdjustMethod = "none", # specifying method for correcting p-value
+               keyType       = "ncbi-geneid" # has to be one of ‘kegg’, ‘ncbi-geneid’, ‘ncib-proteinid’ or ‘uniprot’, specifying which data set the key belongs to
+)
+
+
+
+View(kk2@result)
+
+
+# Dot Plot
+# Saving the Dot Plot in a jpg file
+jpeg("rdotplotkegg.jpg", width = 1800, height = 750)
+dotplot(kk2, showCategory = 10, title = "Enriched Pathways" , split=".sign") + facet_grid(.~.sign)
+#dotplot(gse, showCategory=10, split=".sign") + facet_grid(.~.sign)
+dev.off()
+
+
+# Enrichment Map
+# Saving the Enrichment Map in a jpg file
+jpeg("renrichmentmapkegg.jpg", width = 1800, height = 750)
+xkk2 <- pairwise_termsim(kk2)
+emapplot(xkk2)
+#emapplot(gse, showCategory = 10)
+dev.off()
+
+
+
+# Category Netplot
+
+# categorySize can be either 'pvalue' or 'geneNum'
+# Saving the Category Netplot in a jpg file
+jpeg("rcategorynetplotkegg.jpg", width = 1800, height = 750)
+# categorySize can be either 'pvalue' or 'geneNum'
+cnetplot(kk2, categorySize="pvalue", foldChange=gene_list)
+dev.off()
+
+
+# Ridge Plot
+# Saving the Ridge Plot in a jpg file
+jpeg("rridgeplotkegg.jpg", width = 1800, height = 750)
+ridgeplot(kk2) + labs(x = "enrichment distribution")
+dev.off()
+
+
+# Saving the GSEA Plot in a jpg file
+select_gene_id_kegg <- 1
+jpeg("rgseakegg.jpg", width = 1800, height = 750)
+# Use the `Gene Set` param for the index in the title, and as the value for geneSetId
+gseaplot(kk2, by = "all", title = kk2$Description[select_gene_id_kegg], geneSetID = select_gene_id_kegg)
+dev.off()
+
+
+
+
+# 
+# Pathway analysis
+# 
+# siglfc <- 2.0
+# selectGenesUp <- unique(de_genes_new[de_genes_new$logFC > siglfc,'ENTREZ'])
+# selectGenesDown <- unique(de_genes_new[de_genes_new$logFC< (-siglfc),'ENTREZ'])
+# View(selectGenesUp)
+# View(selectGenesDown)
+# # 1548 for example of duplicate
+# 
+# univeral_gene_set <- unique(de_genes_new$ENTREZ)
+# cutOff = 0.01
+# 
+# upParams = new("GOHyperGParams",
+#                geneIds = selectGenesUp,
+#                universeGeneIds = univeral_gene_set,
+#                annotation = "org.Hs.eg.db",
+#                ontology = "BP",
+#                pvalueCutoff = cutOff,
+#                conditional = FALSE,
+#                testDirection = "over")
+# 
+# downParams = new("GOHyperGParams",
+#                  geneIds = selectGenesDown,
+#                  universeGeneIds = univeral_gene_set,
+#                  annotation = "org.Hs.eg.db",
+#                  ontology = "BP",
+#                  pvalueCutoff = cutOff,
+#                  conditional = FALSE,
+#                  testDirection = "over")
+# 
+# # Biological Processes
+# upBP = hyperGTest(upParams)
+# summary(upBP)[1:10,]
+# 
+# downBP = hyperGTest(downParams)
+# summary(downBP)[1:10,]
+# 
+# 
+# # Cellular Components
+# ontology(upParams) = "CC"
+# upCC = hyperGTest(upParams)
+# summary(upCC)[1:10,]
+# 
+# ontology(downParams) = "CC"
+# downCC = hyperGTest(downParams)
+# summary(downCC)[1:10,]
+# 
+# 
+# # Molecular Function
+# ontology(upParams) = "MF"
+# upMF = hyperGTest(upParams)
+# summary(upMF)[1:10,]
+# 
+# ontology(downParams) = "MF"
+# downMF = hyperGTest(downParams)
+# summary(downMF)[1:10,]
+# 
+# 
+# # Pathway Analysis
+# 
+# 
+# 
+# foldchanges <- de_genes_new$logFC
+# names(foldchanges) <- de_genes_new$ENTREZ
+# head(foldchanges)
+# 
+# data("go.sets.hs")
+# data("go.subs.hs")
+# gobp_set <- go.sets.hs[go.subs.hs$BP] #using those which have id from subs biological processes
+# #gobp_set <- go.sets.hs
+# 
+# gobp_data <- gage(exprs = foldchanges, gsets = gobp_set, same.dir = TRUE) #look in the same direction for up and down regulated genes
+# View(gobp_data$greater)
+# 
+# 
+# data("kegg.sets.hs")
+# data("sigmet.idx.hs") # smaller subset of the keg subset
+# kegg.sets.hs <- kegg.sets.hs[sigmet.idx.hs]
+# 
+# kegg_data <- gage(exprs = foldchanges, gsets = kegg.sets.hs, same.dir = TRUE) #look in the same direction for up and down regulated genes
+# View(kegg_data$less)
+# 
+# 
+# keggrespathways <- data.frame(id = rownames(kegg_data$greater), kegg_data$greater) %>%
+#   tibble::as_tibble() %>%
+#   filter(row_number()<=20) %>%
+#   .$id %>%
+#   as.character()
+# keggrespathways
+# 
+# keggresids <- substr(keggrespathways, start = 1, stop = 8)
+# keggresids
+# 
+# setwd("/Users/jyotir/Desktop/PB/HandsOn/A1/Q8")
+# 
+# tmp <- sapply(keggresids, function(pid) pathview(gene.data = foldchanges, pathway.id = pid, species = "hsa"))
+# 
+# 
+# 
+# 
+# all_bp_cc_mf <- gseGO(geneList=gene_list, 
+#                       ont ="ALL", 
+#                       keyType = "ENSEMBL", 
+#                       nPerm = 10000, 
+#                       minGSSize = 3, 
+#                       maxGSSize = 800, 
+#                       pvalueCutoff = 0.05, 
+#                       verbose = TRUE, 
+#                       OrgDb = organism, 
+#                       pAdjustMethod = "holm")
+# 
+# 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
